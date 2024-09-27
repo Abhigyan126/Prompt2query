@@ -1,100 +1,139 @@
 import tkinter as tk
-from tkinter import PhotoImage, Entry, Button, Text, Scrollbar, Frame
+from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar
+from llm_pandas import LLMHandler
 
-root = tk.Tk()
-height_ = root.winfo_screenheight() - 100
-width_ = root.winfo_screenwidth() - 50
+class Prompt2QueryApp:
+    def __init__(self, root):
+        self.root = root
+        self.setup_window()
+        self.load_icons()
+        self.create_layout()
+        self.lh = LLMHandler()
 
-root.geometry(f"{width_}x{height_}")
-root.title("Prompt2Query")
+    def setup_window(self):
+        height_ = self.root.winfo_screenheight() - 100
+        width_ = self.root.winfo_screenwidth() - 50
+        self.root.geometry(f"{width_}x{height_}")
+        self.root.title("Prompt2Query")
 
-# icon
-icon = PhotoImage(file='logo.png')
-root.iconphoto(True, icon)
+    def load_icons(self):
+        # Load and set the window icon
+        self.icon = PhotoImage(file='logo.png')
+        self.root.iconphoto(True, self.icon)
 
-# icon-up
-up = PhotoImage(file='up-arrow.png')
-resized_up = up.subsample(20, 20)
+        # Load icons for buttons
+        self.icon_up = PhotoImage(file='up-arrow.png').subsample(20, 20)
+        self.icon_attach = PhotoImage(file='attachment.png').subsample(20, 20)
 
-# icon-attachment
-attach = PhotoImage(file='attachment.png')
-resized_attach = attach.subsample(20, 20)
+    def create_layout(self):
+        self.create_left_frame()
+        self.create_right_frame()
 
-# Create the left frame
-left_frame = tk.Frame(root, bg="lightgrey", width=width_ // 2 - 250)
-left_frame.pack(side="left", fill="y")
+    def create_left_frame(self):
+        # Left frame for text output and scrollbar
+        self.left_frame = Frame(self.root, bg="white", width=self.root.winfo_width() // 2 - 250)
+        self.left_frame.pack(side="left", fill="y")
 
-# Create the output text box with a fixed height and scrollbar
-output_text = tk.Text(left_frame, bg="white", font=("Arial", 14), wrap="word", height=20, width=50)
-output_text.pack(side="left", fill="both", expand=True)
+        self.output_text = tk.Text(self.left_frame, bg="black", font=("Arial", 14), wrap="word", height=20, width=50)
+        self.output_text.pack(side="left", fill="both", expand=True)
 
-# Add a vertical scrollbar to the text box
-scrollbar = tk.Scrollbar(left_frame, command=output_text.yview)
-scrollbar.pack(side="right", fill="y")
-output_text.config(yscrollcommand=scrollbar.set)
+        # Add scrollbar to text widget
+        self.scrollbar = Scrollbar(self.left_frame, command=self.output_text.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self.output_text.config(yscrollcommand=self.scrollbar.set)
 
-# Right frame
-right_frame = tk.Frame(root, bg="grey")
-right_frame.pack(side="right", fill="both", expand=True)
+    def create_right_frame(self):
+        # Right frame for input and dynamic label display
+        self.right_frame = Frame(self.root, bg="white")
+        self.right_frame.pack(side="right", fill="both", expand=True)
 
-# Top right frame (90% of height)
-top_right_frame = tk.Frame(right_frame, bg="red", height=height_*0.90)
-top_right_frame.pack(side="top", fill="both", expand=True)
+        self.create_top_right_frame()
+        self.create_bottom_right_frame()
 
-# Frame for the Text widget and scrollbar
-output_frame = Frame(top_right_frame)
-output_frame.pack(fill="both", expand=True)
+    def create_top_right_frame(self):
+        # Top right frame with scrolling label container
+        self.top_right_frame = Frame(self.right_frame, bg="white")
+        self.top_right_frame.pack(side="top", fill="both", expand=True)
 
-# Text widget for displaying output (non-editable)
-output_text = Text(output_frame, bg="white", font=("Ariel", 14), wrap='word', state='disabled')
-output_text.pack(side="left", fill="both", expand=True)
+        self.label_frame = Frame(self.top_right_frame)
+        self.label_frame.pack(side="left", fill="both", expand=True)
 
-# Scrollbar for the Text widget
-scrollbar = Scrollbar(output_frame, command=output_text.yview)
-scrollbar.pack(side="right", fill="y")
+        # Create canvas for scrolling labels
+        self.canvas = tk.Canvas(self.label_frame)
+        self.canvas.pack(side="left", fill="both", expand=True)
 
-# Configure the Text widget to use the scrollbar
-output_text.config(yscrollcommand=scrollbar.set)
+        # Scrollbar for the label container
+        self.label_scrollbar = Scrollbar(self.label_frame, orient="vertical", command=self.canvas.yview)
+        self.label_scrollbar.pack(side="right", fill="y")
+        self.canvas.config(yscrollcommand=self.label_scrollbar.set)
 
-# Function to update the Text widget
-def update_text(text):
-    output_text.config(state='normal')
-    output_text.insert(tk.END, text + "\n")
-    output_text.config(state='disabled')
-    output_text.see(tk.END)
+        # Container frame inside the canvas
+        self.label_container = Frame(self.canvas)
+        self.canvas.create_window((0, 0), window=self.label_container, anchor="nw")
 
-# Bottom right frame (height same as buttons)
-bottom_right_frame = tk.Frame(right_frame, bg="blue")
-bottom_right_frame.pack(side="bottom", fill="x")  # Fill in the x direction only
+        # Configure canvas scroll area
+        self.label_container.bind("<Configure>", self.on_frame_configure)
 
-# Frame to hold Entry and Buttons in bottom_right_frame
-input_frame = tk.Frame(bottom_right_frame, bg="blue")
-input_frame.pack(side="top", pady=10)  # Pack input_frame to keep it at the top
+        # Mouse wheel scrolling
+        self.canvas.bind_all("<MouseWheel>", self.scroll)
 
-# Entry widget
-entry = Entry(input_frame, font=("Ariel", 20), width=50)
-entry.grid(row=0, column=1)
+    def create_bottom_right_frame(self):
+        # Bottom right frame for input and buttons
+        self.bottom_right_frame = Frame(self.right_frame, bg="white")
+        self.bottom_right_frame.pack(side="bottom", fill="x")
 
-# Attachment button
-button = Button(input_frame, image=resized_attach, width=30, height=28, command=lambda: print("Open CSV"))
-button.grid(row=0, column=0)
+        self.input_frame = Frame(self.bottom_right_frame, bg="white")
+        self.input_frame.pack(side="top", pady=10)
 
-# Function to handle displaying text
-def submit_text():
-    text = entry.get()
-    if text: 
-        update_text(text)
-        entry.delete(0, tk.END)
+        # Entry widget for input
+        self.entry = Entry(self.input_frame, font=("Arial", 20), width=50, bg="black")
+        self.entry.grid(row=0, column=1)
 
-# Submit button
-submit_button = Button(input_frame, image=resized_up, width=30, height=28, command=submit_text)
-submit_button.grid(row=0, column=2)
+        # Attachment button
+        self.attach_button = Button(self.input_frame, image=self.icon_attach, width=30, height=28, command=self.attach_file)
+        self.attach_button.grid(row=0, column=0)
 
-# Adjust the bottom_right_frame to have the same height as the input_frame
-bottom_right_frame.update_idletasks()
-bottom_right_frame_height = input_frame.winfo_height()
-bottom_right_frame.config(height=bottom_right_frame_height)
+        # Submit button for adding labels
+        self.submit_button = Button(self.input_frame, image=self.icon_up, width=30, height=28, command=self.submit_text)
+        self.submit_button.grid(row=0, column=2)
 
+    def on_frame_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-print(width_, height_)
-root.mainloop()
+    def scroll(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def submit_text(self):
+        text = self.entry.get()
+        if text:
+            self.add_label("Query: " + text)
+            res = self.get_from_llm_pandas(text)
+            if res == "":
+                res = "RESULT NOT GENERATED"
+            print(res)
+            self.add_label_ans(res)
+            self.entry.delete(0, tk.END)
+
+    def attach_file(self):
+        print("Open CSV")
+
+    def add_label(self, text):
+        label = tk.Label(self.label_container, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left")
+        label.pack(anchor="w", pady=5, padx=10)
+    def add_label_ans(self, text):
+        label = tk.Label(self.label_container, text=text, bg="black",fg="green", font=("Arial", 14), anchor="w", justify="left")
+        label.pack(anchor="w", pady=5, padx=10)
+
+    def get_from_llm_pandas(self, message):
+        self.lh.load_data('heart.csv')
+        gen_code = self.lh.generate_code(message)
+        print(gen_code)
+        result = self.lh.execute_code(gen_code)
+        print("gen code executed")
+        print(result)
+        return result
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = Prompt2QueryApp(root)
+    root.mainloop()
