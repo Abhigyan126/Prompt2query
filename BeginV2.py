@@ -22,17 +22,17 @@ class Prompt2QueryApp:
     def load_icons(self):
         # Load images for buttons and window icon
         try:
-            self.icon = PhotoImage(file='logo.png')
+            self.icon = PhotoImage(file='Icons/logo.png')
             self.root.iconphoto(True, self.icon)
         except tk.TclError:
-            print("Logo image not found. Please ensure 'logo.png' is in the working directory.")
+            print("Logo image not found. Please ensure 'Icons/logo.png' is in the working directory.")
         try:
-            self.icon_up = PhotoImage(file='up-arrow.png').subsample(20, 20)
+            self.icon_up = PhotoImage(file='Icons/up-arrow.png').subsample(20, 20)
         except tk.TclError:
-            print("Up-arrow image not found. Please ensure 'up-arrow.png' is in the working directory.")
+            print("Up-arrow image not found. Please ensure 'Icons/up-arrow.png' is in the working directory.")
             self.icon_up = None  # Set to None to avoid errors
         try:
-            self.icon_attach = PhotoImage(file='attachment.png').subsample(20, 20)
+            self.icon_attach = PhotoImage(file='Icons/attachment.png').subsample(20, 20)
         except tk.TclError:
             print("Attachment image not found. Please ensure 'attachment.png' is in the working directory.")
             self.icon_attach = None
