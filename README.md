@@ -18,7 +18,7 @@
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/prompt2query.git
+    git clone https://github.com/Abhigyan126/Prompt2query.git
     ```
 
 2. Navigate into the project directory:
