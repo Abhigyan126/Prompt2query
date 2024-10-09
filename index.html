@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt2Query Web Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            text-align: center;
+        }
+        h2 {
+            color: #333;
+        }
+        input[type="file"], input[type="text"] {
+            padding: 8px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 15px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #responseOutput {
+            background-color: #fff;
+            padding: 10px;
+            width: 90%;
+            max-width: 800px;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            overflow-x: auto;
+            text-align: left;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Upload a CSV file</h2>
+        <input type="file" id="fileInput" accept=".csv">
+        <button onclick="uploadFile()">Upload File</button>
+
+        <h2>Enter Query</h2>
+        <input type="text" id="queryInput" placeholder="Type your query here">
+        <button onclick="submitQuery()">Submit Query</button>
+
+        <h3>Response:</h3>
+        <pre id="responseOutput"></pre>
+    </div>
+
+    <script>
+        const uploadFile = () => {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert("Please select a file to upload.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch('http://127.0.0.1:5000/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('responseOutput').textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(error => console.error("Error uploading file:", error));
+        };
+
+        const submitQuery = () => {
+            const query = document.getElementById('queryInput').value;
+
+            if (!query) {
+                alert("Please enter a query.");
+                return;
+            }
+
+            fetch('http://127.0.0.1:5000/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('responseOutput').textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(error => console.error("Error submitting query:", error));
+        };
+    </script>
+</body>
+</html>
