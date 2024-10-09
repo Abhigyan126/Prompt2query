@@ -44,7 +44,8 @@
 - **View Results**: The generated code and results will appear in the respective panes on the left-hand side.
 - **Log**: All executed queries and results are logged for easy reference.
 
-## Dependencies
+## Dependencies<img width="1410" alt="Screenshot 2024-10-09 at 7 04 08 PM" src="https://github.com/user-attachments/assets/494210df-05a4-4531-8623-e0d94999fa4a">
+
 
 - `tkinter`: For the graphical user interface.
 - `llm_pandas`: To handle natural language queries and generate code.
