@@ -1,7 +1,11 @@
 import tkinter as tk
 from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar, filedialog
 from llm_pandas import LLMHandler
+from sql_llm import LLMMySQLHandler
 from datetime import datetime
+from PIL import Image, ImageTk 
+import os
+
 
 class Prompt2QueryApp:
     def __init__(self, root):
@@ -10,14 +14,21 @@ class Prompt2QueryApp:
         self.load_icons()
         self.create_layout()
         self.lh = LLMHandler()
+        self.sh = LLMMySQLHandler()
+        self.sh.connect()
         self.is_loded_data = False
         self.data_storage = []
+        self.image_references = []
 
     def setup_window(self):
         height_ = self.root.winfo_screenheight() - 100
         width_ = self.root.winfo_screenwidth() - 50
         self.root.geometry(f"{width_}x{height_}")
         self.root.title("Prompt2Query")
+        #make dir for images
+        self.dir_path = "graphs"
+        if not os.path.exists(self.dir_path):
+            os.makedirs(self.dir_path)
 
     def load_icons(self):
         # Load and set the window icon
@@ -51,14 +62,14 @@ class Prompt2QueryApp:
         self.label_button_frame.grid_columnconfigure(2, weight=3)  # Space to the right of label
 
         # Button on the left-most side
-        self.right_button = tk.Button(self.label_button_frame,image=self.play_green , borderwidth=0, highlightthickness=0,command=self.button_execute_manually)
+        self.right_button = tk.Button(self.label_button_frame,image=self.play_green , borderwidth=0.1, highlightthickness=0.1,command=self.button_execute_manually)
         self.right_button.grid(row=0, column=0, sticky="w", padx=(10, 0))
 
         # Label in the center
         self.left_label = tk.Label(self.label_button_frame, text="Executed Code", font=("Arial", 16), fg="black", bg="white", anchor="center")
         self.left_label.grid(row=0, column=1, sticky="nsew")
 
-        self.output_text = tk.Text(self.left_frame, bg="black", font=("Arial", 14), wrap="word", height=20, width=50)
+        self.output_text = tk.Text(self.left_frame, bg="black", font=("Arial", 14), wrap="word", height=20, width=50, fg="white")
         self.output_text.pack(side="left", fill="both", expand=True, padx=(10,0), pady=(0,10))
 
         # Add scrollbar to text widget
@@ -72,6 +83,12 @@ class Prompt2QueryApp:
         if  selected_option_value == "Pandas":
             query = self.output_text.get("1.0", "end-1c")
             result = self.lh.execute_code(query)
+            self.add_label("Query: " + query + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+            self.add_label_ans(result)
+        elif selected_option_value == "SQL":
+            query = self.output_text.get("1.0", "end-1c")
+            output = self.get_from_ll_sql(query)
+            result, _ = output
             self.add_label("Query: " + query + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
             self.add_label_ans(result)
         else:
@@ -143,7 +160,7 @@ class Prompt2QueryApp:
         self.input_frame.pack(side="top", pady=10)
 
         # Entry widget for input
-        self.entry = Entry(self.input_frame, font=("Arial", 20), width=50, bg="black")
+        self.entry = Entry(self.input_frame, font=("Arial", 20), width=50, bg="black", fg="white")
         self.entry.grid(row=0, column=2)
         self.entry.bind("<Return>", self.submit_text)
 
@@ -172,6 +189,7 @@ class Prompt2QueryApp:
             self.pandas_mode()
         elif selected_option_value == "SQL":
             print("sql")
+            self.sql_mode()
         else:
             self.add_label_error("Select a mode from MODE MENU")
         
@@ -199,8 +217,37 @@ class Prompt2QueryApp:
             else:
                 self.add_label(res)
             natural = self.lh.result_to_natural(text, res, code)
+            self.add_graph()
             self.add_label_ans(natural)
             self.entry.delete(0, tk.END)
+
+    def sql_mode(self):
+        text = self.entry.get()
+        if text:
+            self.add_label_button("Query: " + text + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+            output = self.get_from_ll_sql(text)
+            if output is None:
+                self.add_label_error("ERROR: No output from the model")
+                return
+            try:
+                res = output[0]
+                code = output[1]
+            except (IndexError, TypeError):
+                self.add_label_error("ERROR: Output format is incorrect")
+                return
+            self.data_storage.append({'query': text, 'response': res, 'code': code})
+
+            self.output_text.delete("1.0", "end")
+            self.output_text.insert("1.0", f"{code}\n\n")
+            if res == "":
+                self.add_label_error("RESULT NOT GENERATED")
+            else:
+                self.add_label(res)
+            natural = self.lh.result_to_natural(text, res, code)
+            self.add_label_ans(natural)
+            self.entry.delete(0, tk.END)
+
+            
 
     def attach_file(self):
         file_path = filedialog.askopenfilename(
@@ -224,21 +271,45 @@ class Prompt2QueryApp:
             button = tk.Button(frame, text="Show Code",image=self.arrow , command=lambda idx=index: self.display_code(idx))
             button.pack(side="left", padx=(0,10))
 
-        label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left")
+        label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white")
         label.pack(side="left")
+        self.on_frame_configure(None)
+
+
+    #Display_Graphs
+    def add_graph(self):
+        image_store = self.load_png_images_and_delete(self.dir_path)
+        if image_store:
+            for description, single_image in image_store.items():
+                description = description.replace(".png", "") 
+                self.add_label(description)
+                self.add_label_image(single_image)
+                self.on_frame_configure(None)
 
 
 
     def add_label(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left")
+        label = tk.Label(self.label_container, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=500)
         label.pack(anchor="w", pady=5, padx=10)
+        self.on_frame_configure(None)
+
     def add_label_ans(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black",fg="lightgreen", font=("Arial", 14), anchor="w", justify="left")
+        label = tk.Label(self.label_container, text=text, bg="black",fg="lightgreen", font=("Arial", 14), anchor="w", justify="left", wraplength=500)
         label.pack(anchor="w", pady=5, padx=10)
+        self.on_frame_configure(None)
+
     
     def add_label_error(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black",fg="red", font=("Arial", 16), anchor="w", justify="left")
+        label = tk.Label(self.label_container, text=text, bg="black",fg="red", font=("Arial", 16), anchor="w", justify="left", wraplength=500)
         label.pack(anchor="w", pady=5, padx=10)
+        self.on_frame_configure(None)
+
+    
+    def add_label_image(self, image):
+        label = tk.Label(self.label_container, image=image,anchor="w",bg="black", justify="left", wraplength=500)
+        label.pack(anchor="w", pady=5, padx=10)
+        self.on_frame_configure(None)
+
 
     def get_from_llm_pandas(self, message):
         if self.is_loded_data == False:
@@ -250,14 +321,38 @@ class Prompt2QueryApp:
             print("gen code executed")
             print(result)
             return [result, gen_code]
+
+    def get_from_ll_sql(self, message):
+        gen_sql = self.sh.generate_sql(message)
+        print("Generated sql: ", gen_sql)
+        result = self.sh.execute_sql(gen_sql)
+        print("Generated Result: ",result)
+        return [result, gen_sql]
     
     def display_code(self, index):
         if index < len(self.data_storage):
             code = self.data_storage[index]['code']
             self.output_text.delete("1.0", "end")
-            self.output_text.insert("1.0", f"{code}\n\n")  # Display the code
+            self.output_text.insert("1.0", f"{code}\n\n")
         else:
             self.add_label_error("Invalid index Error")
+        
+    def load_png_images_and_delete(self, directory):
+            image_data = {}
+            for filename in os.listdir(directory):
+                if filename.endswith('.png'):
+                    file_path = os.path.join(directory, filename)
+                    try:
+                        img = Image.open(file_path)
+                        img.thumbnail((600, 600))
+                        tk_image = ImageTk.PhotoImage(img)
+                        image_data[filename] = tk_image
+                        self.image_references.append(tk_image)
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Error loading {filename}: {e}")
+
+            return image_data
 
 
 if __name__ == "__main__":

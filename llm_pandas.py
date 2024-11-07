@@ -28,6 +28,7 @@ class LLMHandler:
                   f"Try to write it in a way that will not generate any error. If you want to access the data, "
                   f"it's stored in the 'data' variable by default. Here is the query: {query}. "
                   f"available libraries you can use nupmy as np, pandas as pd, and matplotlib as plt."
+                  f"dont display any graph save all the images or graphs in the graphs directory which is alredy created for you, the name for the graph should be its discription in detail, donot print confirmation regarding saving graph"
                   f"stick with the information provided dont assume things and use try and except block with proper error handeling"
                   f"print the answer for query asked"
                   f"Here is the information about the data: {self.get_data_info()}. "
