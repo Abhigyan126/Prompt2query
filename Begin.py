@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar, filedialog
+from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar, filedialog, Toplevel
 from llm_pandas import LLMHandler
 from sql_llm import LLMMySQLHandler
 from datetime import datetime
-from PIL import Image, ImageTk 
+from PIL import Image, ImageTk
+import json 
 import os
 
 
@@ -15,10 +16,14 @@ class Prompt2QueryApp:
         self.create_layout()
         self.lh = LLMHandler()
         self.sh = LLMMySQLHandler()
-        self.sh.connect()
+        self.connect_state = False
         self.is_loded_data = False
         self.data_storage = []
         self.image_references = []
+        self.history = []
+        self.rollbackdata = []
+        self.fill_manage_connect()
+
 
     def setup_window(self):
         height_ = self.root.winfo_screenheight() - 100
@@ -42,6 +47,10 @@ class Prompt2QueryApp:
         self.arrow = PhotoImage(file='Icons/play_red.png').subsample(20, 20)
         self.play_green = PhotoImage(file='Icons/play_green.png').subsample(25, 25)
         self.play_red = PhotoImage(file='Icons/play_red.png').subsample(25, 25)
+        self.rollback_icon = PhotoImage(file='Icons/reload.png').subsample(15, 15)
+        self.loadrollback = PhotoImage(file='Icons/insert_rollback.png').subsample(15, 15)
+        self.configure_icon = PhotoImage(file='Icons/gear.png').subsample(15, 15)
+        self.floppydisk = PhotoImage(file='Icons/floppy-disk.png').subsample(15, 15)
 
     def create_layout(self):
         self.create_left_frame()
@@ -115,13 +124,25 @@ class Prompt2QueryApp:
 
         # Label centered in the grid (Grid position: row 0, column 0, columnspan 2)
         self.top_label = tk.Label(self.label_dropdown_frame, text="Result/ Logs", font=("Arial", 16), fg="black", bg="white", anchor="center")
-        self.top_label.grid(row=0, column=0, columnspan=2, padx=1, pady=5, sticky="nsew") 
+        self.top_label.grid(row=0, column=0, columnspan=4, padx=1, sticky="nsew") 
+
+        #Button for Configure
+        self.rollback_button = Button(self.label_dropdown_frame, image=self.configure_icon, borderwidth=0.1, highlightthickness=0.1, command=self.config)
+        self.rollback_button.grid(row=0, column=2, padx=2, sticky='w')
+
+        #Button for LoadRollback pandas
+        self.load_rollback_button = Button(self.label_dropdown_frame, image=self.loadrollback, borderwidth=0.1, highlightthickness=0.1, command=self.perform_load_rollback)
+        self.load_rollback_button.grid(row=0, column=3, padx=2)
+
+        #Button for Rollback Pandas
+        self.rollback_button = Button(self.label_dropdown_frame, image=self.rollback_icon, borderwidth=0.1, highlightthickness=0.1, command=self.perform_rollback, state='disabled')
+        self.rollback_button.grid(row=0, column=4, padx=5)
 
         # Dropdown on the far right (Grid position: row 0, column 2)
         self.selected_option = tk.StringVar(self.root)
         self.selected_option.set("MODE")
         self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL")
-        self.dropdown.grid(row=0, column=2, padx=1, pady=5, sticky="e")
+        self.dropdown.grid(row=0, column=5, padx=1, pady=5, sticky="e")
 
         # Configure the grid columns for proper layout
         self.label_dropdown_frame.grid_columnconfigure(0, weight=1)  # Column for the label to expand
@@ -223,29 +244,29 @@ class Prompt2QueryApp:
 
     def sql_mode(self):
         text = self.entry.get()
-        if text:
-            self.add_label_button("Query: " + text + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
-            output = self.get_from_ll_sql(text)
-            if output is None:
-                self.add_label_error("ERROR: No output from the model")
-                return
-            try:
-                res = output[0]
-                code = output[1]
-            except (IndexError, TypeError):
-                self.add_label_error("ERROR: Output format is incorrect")
-                return
-            self.data_storage.append({'query': text, 'response': res, 'code': code})
+        if text and self.connect_state:
+                self.add_label_button("Query: " + text + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                output = self.get_from_ll_sql(text)
+                if output is None:
+                    self.add_label_error("ERROR: No output from the model")
+                    return
+                try:
+                    res = output[0]
+                    code = output[1]
+                except (IndexError, TypeError):
+                    self.add_label_error("ERROR: Output format is incorrect")
+                    return
+                self.data_storage.append({'query': text, 'response': res, 'code': code})
 
-            self.output_text.delete("1.0", "end")
-            self.output_text.insert("1.0", f"{code}\n\n")
-            if res == "":
-                self.add_label_error("RESULT NOT GENERATED")
-            else:
-                self.add_label(res)
-            natural = self.lh.result_to_natural(text, res, code)
-            self.add_label_ans(natural)
-            self.entry.delete(0, tk.END)
+                self.output_text.delete("1.0", "end")
+                self.output_text.insert("1.0", f"{code}\n\n")
+                if res == "":
+                    self.add_label_error("RESULT NOT GENERATED")
+                else:
+                    self.add_label(res)
+                natural = self.lh.result_to_natural(text, res, code)
+                self.add_label_ans(natural)
+                self.entry.delete(0, tk.END)
 
             
 
@@ -264,10 +285,8 @@ class Prompt2QueryApp:
     def add_label_button(self, text):
         frame = tk.Frame(self.label_container, bg="black")
         frame.pack(anchor="w", pady=5, padx=10, fill="x")
-
-        # Capture the current index correctly for each button
         if self.is_loded_data:
-            index = len(self.data_storage)  # Get the index for the new query
+            index = len(self.data_storage)
             button = tk.Button(frame, text="Show Code",image=self.arrow , command=lambda idx=index: self.display_code(idx))
             button.pack(side="left", padx=(0,10))
 
@@ -286,22 +305,34 @@ class Prompt2QueryApp:
                 self.add_label_image(single_image)
                 self.on_frame_configure(None)
 
-
-
     def add_label(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=500)
-        label.pack(anchor="w", pady=5, padx=10)
+        frame = tk.Frame(self.label_container, bg="black")
+        var = tk.BooleanVar()
+        checkbox = tk.Checkbutton(frame, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
+        checkbox.pack(side="left", padx=(5, 10), anchor="ne")
+        label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=500)
+        label.pack(side="left", anchor="w", padx=10)
+        frame.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
 
     def add_label_ans(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black",fg="lightgreen", font=("Arial", 14), anchor="w", justify="left", wraplength=500)
-        label.pack(anchor="w", pady=5, padx=10)
+        frame1 = tk.Frame(self.label_container, bg="black")
+        var = tk.BooleanVar()
+        checkbox = tk.Checkbutton(frame1, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
+        checkbox.pack(side="left", padx=(5, 10), anchor="ne")
+        label = tk.Label(frame1, text=text, bg="black", fg="lightgreen", font=("Arial", 14), anchor="w", justify="left", wraplength=500)
+        label.pack(side="left", anchor="w", padx=10)
+        frame1.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
 
-    
     def add_label_error(self, text):
-        label = tk.Label(self.label_container, text=text, bg="black",fg="red", font=("Arial", 16), anchor="w", justify="left", wraplength=500)
-        label.pack(anchor="w", pady=5, padx=10)
+        frame2 = tk.Frame(self.label_container, bg="black")
+        var = tk.BooleanVar()
+        checkbox = tk.Checkbutton(frame2, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
+        checkbox.pack(side="left", padx=(5, 10), anchor="ne")
+        label = tk.Label(frame2, text=text, bg="black", fg="red", font=("Arial", 16), anchor="w", justify="left", wraplength=500)
+        label.pack(side="left", anchor="w", padx=10)  # Using pack for the label
+        frame2.pack(anchor="w", pady=5, padx=10, fill="x")  # Using pack for the frame
         self.on_frame_configure(None)
 
     
@@ -315,7 +346,7 @@ class Prompt2QueryApp:
         if self.is_loded_data == False:
             self.add_label_error("Data not loaded")
         else:
-            gen_code = self.lh.generate_code(message)
+            gen_code = self.lh.generate_code(message, history=self.history)
             print(gen_code)
             result = self.lh.execute_code(gen_code)
             print("gen code executed")
@@ -336,6 +367,13 @@ class Prompt2QueryApp:
             self.output_text.insert("1.0", f"{code}\n\n")
         else:
             self.add_label_error("Invalid index Error")
+    
+    def toggle_history(self, label_text, var):
+        if var.get():
+            self.history.append(label_text)
+        else:
+            self.history.remove(label_text)
+        print("Current history:", self.history)  # This prints the updated history list
         
     def load_png_images_and_delete(self, directory):
             image_data = {}
@@ -353,7 +391,91 @@ class Prompt2QueryApp:
                         print(f"Error loading {filename}: {e}")
 
             return image_data
+    #Function to perform rollback
+    def perform_rollback(self):
+        self.lh.load_data_var(self.rollbackdata)
+        print(self.rollbackdata.head())
+    #Function to perform load_rollback
+    def perform_load_rollback(self):
+        self.rollbackdata = self.lh.return_data()
+        self.rollback_button.config(state='active')
 
+    #Function to open config pannel
+    def config(self):
+        print("Configuring Database Connection...")
+
+        # Create new window
+        self.new_window = Toplevel(self.root)
+        self.new_window.title("Config")
+
+        # Set up frame for connection
+        frame_for_connect = tk.Frame(self.new_window, bg="#eae8e0", borderwidth=5, width=300, height=200)
+        frame_for_connect.pack(padx=20, pady=20)
+
+        # Load credentials if the file exists
+        credentials = {}
+        if os.path.exists("db_credentials.json"):
+            with open("db_credentials.json", "r") as file:
+                try:
+                    credentials = json.load(file)
+                except json.JSONDecodeError:
+                    print("Error decoding credentials file. Please check the file format.")
+
+        # Host entry
+        tk.Label(frame_for_connect, text="Host:", bg="#eae8e0", fg='#6F4E37', anchor='w').grid(row=0, column=0, sticky='w')
+        self.host_entry = tk.Entry(frame_for_connect, bg="#eae8e0", fg='#6F4E37')
+        self.host_entry.insert(0, credentials.get("host", ""))
+        self.host_entry.grid(row=0, column=1)
+
+        # User entry
+        tk.Label(frame_for_connect, text="User:", bg="#eae8e0", fg='#6F4E37', anchor='w').grid(row=1, column=0, sticky='w')
+        self.user_entry = tk.Entry(frame_for_connect, bg="#eae8e0", fg='#6F4E37')
+        self.user_entry.insert(0, credentials.get("user", ""))
+        self.user_entry.grid(row=1, column=1)
+
+        # Password entry
+        tk.Label(frame_for_connect, text="Password:", bg="#eae8e0", fg='#6F4E37', anchor='w').grid(row=2, column=0, sticky='w')
+        self.password_entry = tk.Entry(frame_for_connect, show="*", bg="#eae8e0", fg='#6F4E37')
+        self.password_entry.insert(0, credentials.get("password", ""))
+        self.password_entry.grid(row=2, column=1)
+
+        # Save and Connect button
+        save_button = tk.Button(frame_for_connect, image=self.floppydisk, bg='#eae8e0', command=self.manage_connect)
+        save_button.grid(row=3, column=0, columnspan=2, pady=10)
+    
+    #Function to manage connect
+    def manage_connect(self):
+        try:
+            host = self.host_entry.get()
+            user = self.user_entry.get()
+            password = self.password_entry.get()
+            #dump to file
+            credentials = {"host": host, "user": user, "password": password}
+            with open("db_credentials.json", "w") as file:
+                json.dump(credentials, file)
+            self.sh.connect(host=host, password=password, user=user)
+            self.connect_state = True
+        except Exception as e:
+            self.add_label_error(f'Error connecting, Error: {e}')
+    def fill_manage_connect(self):
+        try:
+            with open("db_credentials.json", "r") as file:
+                credentials = json.load(file)
+            # Automatically connect using the loaded credentials
+            self.sh.connect(
+            host=credentials.get("host"),
+            user=credentials.get("user"),
+            password=credentials.get("password")
+                )
+            self.connect_state = True            
+            self.add_label_ans(f"Connected to SQL as {credentials.get('user')}")
+        except FileNotFoundError:
+            self.add_label_error("Credential file not found. Please enter details manually.")
+        except json.JSONDecodeError:
+            self.add_label_error("Error decoding credentials file. Please check the file format.")
+        except Exception as e:
+            self.add_label_error(f"Unexpected error: {e}")
+        
 
 if __name__ == "__main__":
     root = tk.Tk()
