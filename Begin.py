@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar, filedialog, Toplevel
 from llm_pandas import LLMHandler
 from sql_llm import LLMMySQLHandler
+from llm import LLM
 from datetime import datetime
 from PIL import Image, ImageTk
 import json 
@@ -18,6 +19,7 @@ class Prompt2QueryApp:
         self.sh = LLMMySQLHandler()
         self.connect_state = False
         self.is_loded_data = False
+        self.llm = LLM()
         self.data_storage = []
         self.image_references = []
         self.history = []
@@ -141,7 +143,7 @@ class Prompt2QueryApp:
         # Dropdown on the far right (Grid position: row 0, column 2)
         self.selected_option = tk.StringVar(self.root)
         self.selected_option.set("MODE")
-        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL")
+        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL", "Default")
         self.dropdown.grid(row=0, column=5, padx=1, pady=5, sticky="e")
 
         # Configure the grid columns for proper layout
@@ -211,6 +213,8 @@ class Prompt2QueryApp:
         elif selected_option_value == "SQL":
             print("sql")
             self.sql_mode()
+        elif selected_option_value == "Default":
+            self.default_mode()
         else:
             self.add_label_error("Select a mode from MODE MENU")
         
@@ -241,6 +245,11 @@ class Prompt2QueryApp:
             self.add_graph()
             self.add_label_ans(natural)
             self.entry.delete(0, tk.END)
+
+    def default_mode(self):
+        text = self.entry.get()
+        output = self.llm.model(text)
+        self.add_label_ans(output)
 
     def sql_mode(self):
         text = self.entry.get()
@@ -474,7 +483,8 @@ class Prompt2QueryApp:
         except json.JSONDecodeError:
             self.add_label_error("Error decoding credentials file. Please check the file format.")
         except Exception as e:
-            self.add_label_error(f"Unexpected error: {e}")
+            print(e)
+            self.add_label_error("Could not connect to SQL server")
         
 
 if __name__ == "__main__":
