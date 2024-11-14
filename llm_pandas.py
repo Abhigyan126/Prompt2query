@@ -31,14 +31,14 @@ class LLMHandler:
         # Craft the prompt using the query and data information
         prompt = (f"your job is to write code without any explanation or comments for the queries asked. "
                   f"Try to write it in a way that will not generate any error. If you want to access the data, "
-                  f"it's stored in the 'data' variable by default. Here is the query: {query}. "
+                  f"it's stored in the 'data' variable by default. Here is the query: {query} {history}."
                   f"available libraries you can use nupmy as np, pandas as pd, and matplotlib as plt."
                   f"dont display any graph save all the images or graphs in the graphs directory which is alredy created for you, the name for the graph should be its discription in detail, donot print confirmation regarding saving graph"
                   f"stick with the information provided dont assume things and use try and except block with proper error handeling"
                   f"print the answer for query asked"
                   f"Here is the information about the data: {self.get_data_info()}. "
                   f"Solve the query given to you."
-                  f"this is history of previous conversation if its empty ignore only take information relevent to the query or else ignore, here is history: {history}")
+                  )
         
         # Get the response from the LLM
         generated_code = self.llm.model(prompt)[9:-3]

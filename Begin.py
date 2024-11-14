@@ -248,7 +248,7 @@ class Prompt2QueryApp:
 
     def default_mode(self):
         text = self.entry.get()
-        output = self.llm.model(text)
+        output = self.llm.model(f"{text}, this is histry of previous conversation: {self.history}")
         self.add_label_ans(output)
 
     def sql_mode(self):
@@ -346,7 +346,7 @@ class Prompt2QueryApp:
 
     
     def add_label_image(self, image):
-        label = tk.Label(self.label_container, image=image,anchor="w",bg="black", justify="left", wraplength=500)
+        label = tk.Label(self.label_container, image=image,anchor="w",bg="black", justify="left")
         label.pack(anchor="w", pady=5, padx=10)
         self.on_frame_configure(None)
 
@@ -363,7 +363,7 @@ class Prompt2QueryApp:
             return [result, gen_code]
 
     def get_from_ll_sql(self, message):
-        gen_sql = self.sh.generate_sql(message)
+        gen_sql = self.sh.generate_sql(message, self.history)
         print("Generated sql: ", gen_sql)
         result = self.sh.execute_sql(gen_sql)
         print("Generated Result: ",result)

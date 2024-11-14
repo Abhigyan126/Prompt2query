@@ -8,7 +8,6 @@ class LLMMySQLHandler:
         self.llm = LLM()
         self.mydb = None
         self.cursor = None
-        self.connect()  # Initialize the connection automatically
     def connect(self, host="localhost", user="root", password="jain@123"):
         self.mydb = mysql.connector.connect(
             host=host,
@@ -17,11 +16,12 @@ class LLMMySQLHandler:
         )
         self.cursor = self.mydb.cursor()
 
-    def generate_sql(self, task_message):
+    def generate_sql(self, task_message, history):
         # Craft the prompt for the LLM
         prompt = (f"Your job is to write clean SQL queries for MySQL based on the task description. At start of every qery there should be use database name command to select database"
                   f"If the task is not related to SQL, return a comment saying 'Not SQL.' "
                   f"dont ask question use what you have"
+                  f"here attached is histry of previous conversation: {history}"
                   f"Here is the task: {task_message}")
         
         # Get the response from the LLM
