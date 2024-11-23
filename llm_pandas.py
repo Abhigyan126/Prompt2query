@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib as plt
 import io
+import re
 import numpy as np
 from llm import LLM
 
@@ -41,7 +42,11 @@ class LLMHandler:
                   )
         
         # Get the response from the LLM
-        generated_code = self.llm.model(prompt)[9:-3]
+        generated_code = self.llm.model(prompt)
+        pattern = r"```(?:\w+)?\n(.*?)```"
+        generated_code = re.findall(pattern, generated_code, re.DOTALL)
+        generated_code = "\n".join(generated_code)
+        print(generated_code)
         return generated_code
 
     def execute_code(self, generated_code):
