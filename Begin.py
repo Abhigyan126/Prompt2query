@@ -2,9 +2,12 @@ import tkinter as tk
 from tkinter import PhotoImage, Entry, Button, Frame, Scrollbar, filedialog, Toplevel
 from llm_pandas import LLMHandler
 from sql_llm import LLMMySQLHandler
+from recursionv2 import PandasRecursionHandler
 from llm import LLM
 from datetime import datetime
 from PIL import Image, ImageTk
+from tkhtmlview import HTMLLabel
+import markdown
 import json 
 import os
 
@@ -25,6 +28,7 @@ class Prompt2QueryApp:
         self.history = []
         self.rollbackdata = []
         self.fill_manage_connect()
+        self.max_phases = 5
 
 
     def setup_window(self):
@@ -143,7 +147,7 @@ class Prompt2QueryApp:
         # Dropdown on the far right (Grid position: row 0, column 2)
         self.selected_option = tk.StringVar(self.root)
         self.selected_option.set("MODE")
-        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL", "Default")
+        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL", "Default", "REPandasPhase")
         self.dropdown.grid(row=0, column=5, padx=1, pady=5, sticky="e")
 
         # Configure the grid columns for proper layout
@@ -193,7 +197,7 @@ class Prompt2QueryApp:
         self.attach_button.grid(row=0, column=1)
 
         #Save botton functionality not implemented
-        self.save_button =  Button(self.input_frame, image=self.save_icon, width=30, height=26, command=self.attach_file)
+        self.save_button =  Button(self.input_frame, image=self.save_icon, width=30, height=26, command=self.save_file)
         self.save_button.grid(row=0, column=0)
 
         # Submit button for adding labels
@@ -210,6 +214,8 @@ class Prompt2QueryApp:
         selected_option_value = self.selected_option.get()
         if selected_option_value == "Pandas":
             self.pandas_mode()
+        elif selected_option_value == "REPandasPhase":
+            self.REpandas_mode()
         elif selected_option_value == "SQL":
             print("sql")
             self.sql_mode()
@@ -245,6 +251,59 @@ class Prompt2QueryApp:
             self.add_graph()
             self.add_label_ans(natural)
             self.entry.delete(0, tk.END)
+
+    def REpandas_mode(self):
+        text = self.entry.get()
+        if self.is_loded_data:
+            if text:
+                self.REhistory = []
+                self.add_label("Query: " + text + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                phase_counter = 1
+                fullplan = self.lh.REgenerate_plan(text)
+                self.add_label_html(fullplan)
+                previous_result = ""
+                while phase_counter <= self.max_phases:
+                    self.add_label(f"Executing phase: {phase_counter}")
+                    try:
+                        generated_code = self.lh.REgenerate_code(phase_counter, previous_result, self.REhistory)
+                        self.output_text.delete("1.0", "end")
+                        self.output_text.insert("1.0", f"{generated_code}\n\n")
+                        phase_result, is_satisfied = self.lh.REexecute_code(generated_code)
+                        self.add_label_button(f"Result of Phase {phase_counter}:\n{phase_result}\n")
+                        current_phase_query = f"Phase {phase_counter}: {text}"
+                        self.data_storage.append({'query': text, 'response': phase_result, 'code': generated_code})
+
+
+                        # Log the phase history
+                        self.REhistory.append({
+                            "phase": phase_counter,
+                            "query": current_phase_query,
+                            "code": generated_code,
+                            "result": phase_result
+                        })
+
+
+                        # Check if AI indicates completion
+                        if is_satisfied:
+                            self.add_label(f"AI is satisfied after Phase {phase_counter}. Stopping execution.")
+                            self.entry.delete(0, tk.END)
+                            break
+
+                        previous_result = phase_result
+                        self.entry.delete(0, tk.END)
+
+
+                    except Exception as e:
+                        phase_counter += 1
+                        print(f"Error in Phase {phase_counter}: {e}")
+                        
+                phase_counter += 1
+            else:
+                self.add_label_error("No text provided")
+        else:
+            self.add_label_error("DATA NOT LOADED")
+
+
 
     def default_mode(self):
         text = self.entry.get()
@@ -291,6 +350,25 @@ class Prompt2QueryApp:
         else:
             self.add_label_error("Failed to load file")
 
+    def save_file(self):
+        file_path = filedialog.asksaveasfilename(
+            title="Save as CSV",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        data = self.lh.return_data()
+        if not file_path:
+            self.add_label_error("Save operation canceled")
+            return
+        if data is not None and not data.empty:
+            try:
+                data.to_csv(file_path, index=False)
+                self.add_label_ans(f"File saved successfully as {file_path}")
+            except Exception as e:
+                self.add_label_error(f"Failed to save file: {e}")
+        else:
+            self.add_label_error("No data available to save or the data is empty")
+
     def add_label_button(self, text):
         frame = tk.Frame(self.label_container, bg="black")
         frame.pack(anchor="w", pady=5, padx=10, fill="x")
@@ -321,6 +399,18 @@ class Prompt2QueryApp:
         checkbox.pack(side="left", padx=(5, 10), anchor="ne")
         label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=500)
         label.pack(side="left", anchor="w", padx=10)
+        frame.pack(anchor="w", pady=5, padx=10, fill="x")
+        self.on_frame_configure(None)
+
+    def add_label_html(self, text):
+        html_text = markdown.markdown(text)
+
+        frame = tk.Frame(self.label_container, bg="black")
+        var = tk.BooleanVar()
+        checkbox = tk.Checkbutton(frame, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
+        checkbox.pack(side="left", padx=(5, 10), anchor="ne")
+        label = HTMLLabel(frame, html=f"<div style='max-width: 500px; background-color: black; color: white;'>{html_text}</div>")
+        label.pack(side="left", anchor="w", padx=10, expand=True, fill="x")
         frame.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
 

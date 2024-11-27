@@ -69,7 +69,7 @@ def rec(message):
         
 
 # Initial prompt
-message = ('perform in-depth analysis, figure out everything yourself, print the results you find, and recurse until you feel satisfied. '
+message = ('perform anova test, figure out everything yourself, print the results you find, and recurse until you feel satisfied. '
            'Ensure to try recursion at least once if needed, especially in case of any errors.')
 
 # Start the process
