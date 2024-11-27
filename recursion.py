@@ -69,7 +69,7 @@ def rec(message):
         
 
 # Initial prompt
-message = ('perform anova test, figure out everything yourself, print the results you find, and recurse until you feel satisfied. '
+message = ('give code to generate heatmap of coorelation'
            'Ensure to try recursion at least once if needed, especially in case of any errors.')
 
 # Start the process

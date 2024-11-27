@@ -116,6 +116,10 @@ class Prompt2QueryApp:
         self.right_frame = Frame(self.root, bg="white")
         self.right_frame.pack(side="right", fill="both", expand=True)
 
+        self.warplength = self.root.winfo_screenwidth() - 50 -(self.root.winfo_width() // 2 - 250) - 800
+        print(self.warplength)
+
+
         self.create_top_right_frame()
         self.create_bottom_right_frame()
 
@@ -147,7 +151,7 @@ class Prompt2QueryApp:
         # Dropdown on the far right (Grid position: row 0, column 2)
         self.selected_option = tk.StringVar(self.root)
         self.selected_option.set("MODE")
-        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL", "Default", "REPandasPhase")
+        self.dropdown = tk.OptionMenu(self.label_dropdown_frame, self.selected_option, "Pandas", "SQL", "Default", "REPandasPhase", "PandasClasic")
         self.dropdown.grid(row=0, column=5, padx=1, pady=5, sticky="e")
 
         # Configure the grid columns for proper layout
@@ -221,9 +225,39 @@ class Prompt2QueryApp:
             self.sql_mode()
         elif selected_option_value == "Default":
             self.default_mode()
+        elif selected_option_value == "PandasClasic":
+            self.pandas_classic_mode()
         else:
             self.add_label_error("Select a mode from MODE MENU")
-        
+
+    def pandas_classic_mode(self):
+        text = self.entry.get()
+        if text:
+            self.add_label_button("Query: " + text + "    | " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+            output = self.get_from_llm_pandas_classic(text)
+            if output is None:
+                self.add_label_error("ERROR: No output from the model")
+                return
+            try:
+                res = output[0]
+                code = output[1]
+            except (IndexError, TypeError):
+                self.add_label_error("ERROR: Output format is incorrect")
+                return
+            
+            self.data_storage.append({'query': text, 'response': res, 'code': code})
+
+            self.output_text.delete("1.0", "end")
+            self.output_text.insert("1.0", f"{code}\n\n")
+            if res == "":
+                self.add_label_error("RESULT NOT GENERATED")
+            else:
+                self.add_label(res)
+            natural = self.lh.result_to_natural(text, res, code)
+            self.add_graph()
+            self.add_label_ans(natural)
+            self.entry.delete(0, tk.END)
+
     def pandas_mode(self):
         text = self.entry.get()
         if text:
@@ -307,8 +341,10 @@ class Prompt2QueryApp:
 
     def default_mode(self):
         text = self.entry.get()
-        output = self.llm.model(f"{text}, this is histry of previous conversation: {self.history}")
-        self.add_label_ans(output)
+        output = self.llm.model(f"{text}. This is histry of previous conversation: {self.history}")
+        self.add_label_html(output)
+        self.entry.delete(0, tk.END)
+
 
     def sql_mode(self):
         text = self.entry.get()
@@ -343,12 +379,14 @@ class Prompt2QueryApp:
         title="Select a CSV file",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
+        
         res = self.lh.load_data(file_path)
-        if res:
-            self.is_loded_data = True
-            self.add_label_ans("File loded sucessfully")
-        else:
-            self.add_label_error("Failed to load file")
+        if file_path:
+            if res:
+                self.is_loded_data = True
+                self.add_label_ans("File loded sucessfully")
+            else:
+                self.add_label_error("Failed to load file")
 
     def save_file(self):
         file_path = filedialog.asksaveasfilename(
@@ -397,7 +435,7 @@ class Prompt2QueryApp:
         var = tk.BooleanVar()
         checkbox = tk.Checkbutton(frame, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
         checkbox.pack(side="left", padx=(5, 10), anchor="ne")
-        label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=500)
+        label = tk.Label(frame, text=text, bg="black", font=("Arial", 14), anchor="w", justify="left", fg="white", wraplength=self.warplength)
         label.pack(side="left", anchor="w", padx=10)
         frame.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
@@ -409,7 +447,7 @@ class Prompt2QueryApp:
         var = tk.BooleanVar()
         checkbox = tk.Checkbutton(frame, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
         checkbox.pack(side="left", padx=(5, 10), anchor="ne")
-        label = HTMLLabel(frame, html=f"<div style='max-width: 500px; background-color: black; color: white;'>{html_text}</div>")
+        label = HTMLLabel(frame, html=f"<div style='max-width: {self.warplength}px; background-color: black; color: white;'>{html_text}</div>")
         label.pack(side="left", anchor="w", padx=10, expand=True, fill="x")
         frame.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
@@ -419,7 +457,7 @@ class Prompt2QueryApp:
         var = tk.BooleanVar()
         checkbox = tk.Checkbutton(frame1, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
         checkbox.pack(side="left", padx=(5, 10), anchor="ne")
-        label = tk.Label(frame1, text=text, bg="black", fg="lightgreen", font=("Arial", 14), anchor="w", justify="left", wraplength=500)
+        label = tk.Label(frame1, text=text, bg="black", fg="lightgreen", font=("Arial", 14), anchor="w", justify="left", wraplength=self.warplength)
         label.pack(side="left", anchor="w", padx=10)
         frame1.pack(anchor="w", pady=5, padx=10, fill="x")
         self.on_frame_configure(None)
@@ -429,7 +467,7 @@ class Prompt2QueryApp:
         var = tk.BooleanVar()
         checkbox = tk.Checkbutton(frame2, variable=var, command=lambda: self.toggle_history(text, var), bg="black")
         checkbox.pack(side="left", padx=(5, 10), anchor="ne")
-        label = tk.Label(frame2, text=text, bg="black", fg="red", font=("Arial", 16), anchor="w", justify="left", wraplength=500)
+        label = tk.Label(frame2, text=text, bg="black", fg="red", font=("Arial", 16), anchor="w", justify="left", wraplength=self.warplength)
         label.pack(side="left", anchor="w", padx=10)  # Using pack for the label
         frame2.pack(anchor="w", pady=5, padx=10, fill="x")  # Using pack for the frame
         self.on_frame_configure(None)
@@ -446,6 +484,17 @@ class Prompt2QueryApp:
             self.add_label_error("Data not loaded")
         else:
             gen_code = self.lh.generate_code(message, history=self.history)
+            print(gen_code)
+            result = self.lh.execute_code(gen_code)
+            print("gen code executed")
+            print(result)
+            return [result, gen_code]
+        
+    def get_from_llm_pandas_classic(self, message):
+        if self.is_loded_data == False:
+            self.add_label_error("Data not loaded")
+        else:
+            gen_code = self.lh.generate_code_old(message)
             print(gen_code)
             result = self.lh.execute_code(gen_code)
             print("gen code executed")
@@ -541,6 +590,8 @@ class Prompt2QueryApp:
         # Save and Connect button
         save_button = tk.Button(frame_for_connect, image=self.floppydisk, bg='#eae8e0', command=self.manage_connect)
         save_button.grid(row=3, column=0, columnspan=2, pady=10)
+
+
     
     #Function to manage connect
     def manage_connect(self):

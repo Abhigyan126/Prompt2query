@@ -28,6 +28,23 @@ class LLMHandler:
     def get_data_info(self):
         self.data.info(buf=self.buffer)
         return self.buffer.getvalue()
+    
+    def generate_code_old(self, query):
+        # Craft the prompt using the query and data information
+        prompt = (f"your job is to write code without any explanation or comments for the queries asked. "
+                  f"Try to write it in a way that will not generate any error. assume data in pandas dataframe, "
+                  f"it's stored in the 'data' variable by default. Here is the query: {query}. "
+                  f"dont display any graph save all the images or graphs in the graphs directory which is alredy created for you, the name for the graph should be its discription in detail, donot print confirmation regarding saving graph"
+                  f"stick with the information provided dont assume things and use try and except block with proper error handeling"
+                  f"print the answer for query asked"
+                  f"Here is the information about the data: {self.get_data_info()}. "
+                  f"Solve the query given to you.")
+
+        generated_code = self.llm.model(prompt)
+        pattern = r"```(?:\w+)?\n(.*?)```"
+        generated_code = re.findall(pattern, generated_code, re.DOTALL)
+        generated_code = "\n".join(generated_code)
+        return generated_code
 
     def generate_code(self, query, history):
         # Craft the prompt using the query and data information
@@ -35,7 +52,7 @@ class LLMHandler:
         prompt = (f"your job is to write code without any explanation or comments for the queries asked. "
                   f"Try to write it in a way that will not generate any error. If you want to access the data, "
                   f"it's stored in the 'data' variable by default. Here is the query: {query} {history}."
-                  f"available libraries you can use nupmy as np, pandas as pd, and matplotlib as plt."
+                  f"Only makes graphs if they are necessary or asked in queries. try to use the same data variable to hold new data "
                   f"dont display any graph save all the images or graphs in the graphs directory which is alredy created for you, the name for the graph should be its discription in detail, donot print confirmation regarding saving graph"
                   f"stick with the information provided dont assume things and use try and except block with proper error handeling"
                   f"print the answer for query asked"
