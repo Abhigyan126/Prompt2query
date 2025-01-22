@@ -4,6 +4,50 @@
 
 **Prompt2Query** is a desktop application built using `tkinter` that enables users to input natural language prompts, generate corresponding code, and execute it using the `llm_pandas` library. This tool is specifically designed for interacting with data using Python code, providing an intuitive interface to query datasets with natural language.
 
+
+## Flow chart
+```mermaid
+%%{init: {'theme': 'black', 'themeVariables': { 'fontSize': '16px'}, "securityLevel": "loose"}}%%
+graph TD
+    A[User Input] --> B{Mode Selection}
+    
+    B -->|Pandas| C[Pandas Mode]
+    C --> C1[LLMHandler]
+    C1 --> C2[Generate Code]
+    C2 --> C3[Execute Code]
+    C3 --> C4[Generate Natural Language]
+    C4 --> R[Display Results]
+    
+    B -->|SQL| D[SQL Mode]
+    D --> D1[LLMMySQLHandler]
+    D1 --> D2[Generate SQL]
+    D2 --> D3[Execute SQL]
+    D3 --> D4[Format Results]
+    D4 --> R
+    
+    B -->|REPandas| E[Recursive Mode]
+    E --> E1[Generate Plan]
+    E1 --> E2[Execute Phases]
+    E2 --> E3{Phase Complete?}
+    E3 -->|No| E2
+    E3 -->|Yes| R
+    
+    B -->|Default| F[Default Mode]
+    F --> F1[LLM Processing]
+    F1 --> R
+    
+    G[File Operations] --> G1{Action Type}
+    G1 -->|Load| G2[Load CSV]
+    G1 -->|Save| G3[Save Results]
+    G2 --> C1
+    G3 --> H[File System]
+    
+    I[History Management] --> I1[Track Selected Items]
+    I1 --> I2[Update Context]
+    I2 --> C1
+    I2 --> D1
+```
+
 ## Features
 
 - **Natural Language to Code**: Convert user queries written in natural language to executable code using `llm_pandas`.
